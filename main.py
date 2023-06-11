@@ -1,38 +1,36 @@
 import json
 import os
 from decimal import Decimal
-
 import requests
 from dotenv import load_dotenv
 
 load_dotenv()
-API_KEY = os.environ["API_KEY"]
-CONTRACT_ADDRESS = os.environ["CONTRACT_ADDRESS"]
-TOKEN_JSON_URL = os.environ["TOKEN_JSON_URL"]
+
+WEI_TO_ETH_SCALE = Decimal(10**18)
+TOKEN_CACHE_DIR = "token_cache"
+TOKEN_TRAIT_TYPES = ["SUITON", "DOTON", "KINTON", "KATON", "MOKUTON"]
 
 
-def get_listed_token_id_to_price():
-    """リストされたtoken_idとその価格の辞書を取得する"""
+def get_listed_token_id_to_price(api_key, contract_address):
     url = "https://api.opensea.io/v2/listings/collection/very-long-cnp/all?limit=100"
 
     response = requests.get(
         url,
         headers={
             "accept": "application/json",
-            "X-API-KEY": API_KEY,
+            "X-API-KEY": api_key,
         },
     )
+    response.raise_for_status()
 
     token_id_to_price = {}
     token_id_to_end_time = {}
     for listing in response.json()["listings"]:
-        # token_idとその価格を取得
         token_id = listing["protocol_data"]["parameters"]["offer"][0][
             "identifierOrCriteria"
         ]
         price = int(listing["price"]["current"]["value"])
         endtime = int(listing["protocol_data"]["parameters"]["endTime"])
-        # token_idがすでに登録されている場合は、endtimeが最新のものを採用する
         if token_id in token_id_to_price:
             if token_id_to_end_time[token_id] > endtime:
                 continue
@@ -42,71 +40,68 @@ def get_listed_token_id_to_price():
     return token_id_to_price
 
 
-def get_token_id_to_total_level(token_ids):
-    """token_idのリストから、そのtoken_idのtraitsを取得する"""
-    token_id_to_total_level = {}
-    for token_id in token_ids:
-        total_level = 0
-        cache_traits = []
-        for trait in get_traits(token_id):
-            total_level += int(trait["value"])
-            cache_traits.append(trait)
-        token_id_to_total_level[token_id] = total_level
-        save_trait_cache_file(token_id, cache_traits)
-    return token_id_to_total_level
-
-
-def get_traits(token_id):
-    """token_idのtraitsを取得する"""
-    # token_cacheフォルダが無ければ作成
-    if not os.path.exists("token_cache"):
-        os.mkdir("token_cache")
-    # すでにキャッシュされたものがあればそちらを取得
-    if os.path.exists(f"token_cache/{token_id}.json"):
-        with open(f"token_cache/{token_id}.json", "r") as f:
+def get_traits(token_id, token_json_url):
+    os.makedirs(TOKEN_CACHE_DIR, exist_ok=True)
+    cache_file = f"{TOKEN_CACHE_DIR}/{token_id}.json"
+    if os.path.exists(cache_file):
+        with open(cache_file, "r") as f:
             return json.load(f)
-    # キャッシュされていない場合はトークンのJSONファイルから取得
-    url = f"{TOKEN_JSON_URL}{token_id}.json"
+
+    url = f"{token_json_url}{token_id}.json"
     response = requests.get(
         url,
         headers={
             "accept": "application/json",
         },
     )
-    return list(
+    response.raise_for_status()
+
+    traits = list(
         filter(
-            lambda x: x["trait_type"]
-            in ["SUITON", "DOTON", "KINTON", "KATON", "MOKUTON"],
+            lambda x: x["trait_type"] in TOKEN_TRAIT_TYPES,
             response.json()["attributes"],
         )
     )
 
+    with open(cache_file, "w") as f:
+        json.dump(traits, f)
 
-def save_trait_cache_file(token_id, trait: dict):
-    """token_cache/{token_id}.jsonにtraitsを保存する"""
-    with open(f"token_cache/{token_id}.json", "w") as f:
-        json.dump(trait, f)
+    return traits
+
+
+def get_token_id_to_total_level(token_ids, token_json_url):
+    token_id_to_total_level = {}
+    for token_id in token_ids:
+        total_level = 0
+        traits = get_traits(token_id, token_json_url)
+        for trait in traits:
+            total_level += int(trait["value"])
+        token_id_to_total_level[token_id] = total_level
+    return token_id_to_total_level
 
 
 def get_eth_price(price):
-    """weiをethに変換する"""
     wei = Decimal(price)
-    eth = wei / Decimal(10**18)
+    eth = wei / WEI_TO_ETH_SCALE
     return eth
 
 
 def main():
-    token_id_to_price = get_listed_token_id_to_price()
+    api_key = os.getenv("API_KEY")
+    contract_address = os.getenv("CONTRACT_ADDRESS")
+    token_json_url = os.getenv("TOKEN_JSON_URL")
+
+    token_id_to_price = get_listed_token_id_to_price(api_key, contract_address)
     sorted_token_id_to_price = sorted(token_id_to_price.items(), key=lambda x: x[1])
     token_id_to_total_level = get_token_id_to_total_level(
-        [token_id for token_id, price in sorted_token_id_to_price]
+        [token_id for token_id, price in sorted_token_id_to_price], token_json_url
     )
-    # トークンIDとその価格、トータルレベルをフロアプライス順にCSVに出力する
+
     with open("token_id_to_price_and_total_level.csv", "w") as f:
         f.write("token_id,price,total_level,url\n")
         for token_id, price in sorted_token_id_to_price:
             f.write(
-                f"{token_id},{get_eth_price(price)},{token_id_to_total_level[token_id]},https://opensea.io/assets/ethereum/{CONTRACT_ADDRESS}/{token_id}\n"
+                f"{token_id},{get_eth_price(price)},{token_id_to_total_level[token_id]},https://opensea.io/assets/ethereum/{contract_address}/{token_id}\n"
             )
 
 
