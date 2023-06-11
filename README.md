@@ -1,6 +1,6 @@
-# リストされたもののレベルを集計する
+# NFT Collection Level Aggregator
 
-特定のNFTコレクションのリストされているもののレベルをCSVで出力します
+特定のNFT（Non-Fungible Token）コレクションのリストされているアイテムのレベルを集計し、結果をCSVファイルに出力します。各NFTのレベルと価格を一覧で確認することができます。
 
 ## 使い方
 
@@ -12,7 +12,7 @@ cp .env-sample .env
 vim .env
 ```
 
-### 必要パッケージインストール
+### 必要パッケージインストール（for Mac）
 
 ```
 brew install pipenv
@@ -37,7 +37,5 @@ token_id,price,total_level,url
 3027,0.0088,28,https://opensea.io/assets/ethereum/0xCFE50e49ec3E5eb24cc5bBcE524166424563dD4E/3027
 7014,0.0088,29,https://opensea.io/assets/ethereum/0xCFE50e49ec3E5eb24cc5bBcE524166424563dD4E/7014
 7043,0.0089,26,https://opensea.io/assets/ethereum/0xCFE50e49ec3E5eb24cc5bBcE524166424563dD4E/7043
-9588,0.009,30,https://opensea.io/assets/ethereum/0xCFE50e49ec3E5eb24cc5bBcE524166424563dD4E/9588
-5550,0.01,28,https://opensea.io/assets/ethereum/0xCFE50e49ec3E5eb24cc5bBcE524166424563dD4E/5550
 ...
 ```
