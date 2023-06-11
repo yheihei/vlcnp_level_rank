@@ -1,6 +1,7 @@
 import json
 import os
 from decimal import Decimal
+
 import requests
 from dotenv import load_dotenv
 
@@ -85,6 +86,15 @@ def get_eth_price(price):
     eth = wei / WEI_TO_ETH_SCALE
     return eth
 
+# フロアプライスの昇順にCSVに出力
+def output_csv(token_id_to_price, token_id_to_total_level, contract_address):
+    with open("token_id_to_price_and_total_level.csv", "w") as f:
+        f.write("token_id,price,total_level,url\n")
+        for token_id, price in sorted(token_id_to_price.items(), key=lambda x: x[1]):
+            f.write(
+                f"{token_id},{get_eth_price(price)},{token_id_to_total_level[token_id]},https://opensea.io/assets/ethereum/{contract_address}/{token_id}\n"
+            )
+
 
 def main():
     api_key = os.getenv("API_KEY")
@@ -92,17 +102,10 @@ def main():
     token_json_url = os.getenv("TOKEN_JSON_URL")
 
     token_id_to_price = get_listed_token_id_to_price(api_key, contract_address)
-    sorted_token_id_to_price = sorted(token_id_to_price.items(), key=lambda x: x[1])
     token_id_to_total_level = get_token_id_to_total_level(
-        [token_id for token_id, price in sorted_token_id_to_price], token_json_url
+        token_id_to_price.keys(), token_json_url
     )
-
-    with open("token_id_to_price_and_total_level.csv", "w") as f:
-        f.write("token_id,price,total_level,url\n")
-        for token_id, price in sorted_token_id_to_price:
-            f.write(
-                f"{token_id},{get_eth_price(price)},{token_id_to_total_level[token_id]},https://opensea.io/assets/ethereum/{contract_address}/{token_id}\n"
-            )
+    output_csv(token_id_to_price, token_id_to_total_level, contract_address)
 
 
 if __name__ == "__main__":
