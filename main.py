@@ -13,31 +13,39 @@ TOKEN_TRAIT_TYPES = ["SUITON", "DOTON", "KINTON", "KATON", "MOKUTON"]
 
 
 def get_listed_token_id_to_price(api_key, contract_address):
-    url = "https://api.opensea.io/v2/listings/collection/very-long-cnp/all?limit=100"
-
-    response = requests.get(
-        url,
-        headers={
-            "accept": "application/json",
-            "X-API-KEY": api_key,
-        },
-    )
-    response.raise_for_status()
-
     token_id_to_price = {}
     token_id_to_end_time = {}
-    for listing in response.json()["listings"]:
-        token_id = listing["protocol_data"]["parameters"]["offer"][0][
-            "identifierOrCriteria"
-        ]
-        price = int(listing["price"]["current"]["value"])
-        endtime = int(listing["protocol_data"]["parameters"]["endTime"])
-        if token_id in token_id_to_price:
-            if token_id_to_end_time[token_id] > endtime:
-                continue
-        token_id_to_price[token_id] = price
-        token_id_to_end_time[token_id] = endtime
+    next = None
+    while(True):
+        url = "https://api.opensea.io/v2/listings/collection/very-long-cnp/all?limit=100"
+        if next:
+            url += f"&next={next}"
+            
 
+        response = requests.get(
+            url,
+            headers={
+                "accept": "application/json",
+                "X-API-KEY": api_key,
+            },
+        )
+        response.raise_for_status()
+
+        for listing in response.json()["listings"]:
+            token_id = listing["protocol_data"]["parameters"]["offer"][0][
+                "identifierOrCriteria"
+            ]
+            price = int(listing["price"]["current"]["value"])
+            endtime = int(listing["protocol_data"]["parameters"]["endTime"])
+            if token_id in token_id_to_price:
+                if token_id_to_end_time[token_id] > endtime:
+                    continue
+            token_id_to_price[token_id] = price
+            token_id_to_end_time[token_id] = endtime
+
+        next = response.json().get("next")
+        if not next:
+            break
     return token_id_to_price
 
 
